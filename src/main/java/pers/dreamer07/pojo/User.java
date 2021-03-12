@@ -41,4 +41,7 @@ public class User {
 
     @Version
     private Integer version; // 乐观锁
+
+    @TableLogic
+    private Integer deleted; // 逻辑删除标识位
 }
