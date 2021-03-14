@@ -634,9 +634,202 @@ public void testDelete(){
 
 # 第五章 性能分析插件
 
+> 作用：可以查看每条 sql 语句的执行时间，也可以每条 sql 语句执行的最大时间，如果超过了就会抛出相应的异常
 
+1. 导入 Maven 依赖
 
+   ```xml
+   <!-- https://mvnrepository.com/artifact/p6spy/p6spy -->
+   <dependency>
+       <groupId>p6spy</groupId>
+       <artifactId>p6spy</artifactId>
+       <version>3.9.1</version>
+   </dependency>
+   ```
 
+2. 修改 SpringBoot 配置文件
 
+   ```properties
+   #spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+   #spring.datasource.url=jdbc:mysql://localhost:3306/mybatis_plus?useSSL=false&useUnicode=true&characterEncoding=utf-8&serverTimezone=UTC
+   
+   # 使用 p6spy 插件查看 sql 执行效率
+   spring.datasource.driver-class-name=com.p6spy.engine.spy.P6SpyDriver
+   spring.datasource.url=jdbc:p6spy:mysql://localhost:3306/mybatis_plus?useSSL=false&useUnicode=true&characterEncoding=utf-8&serverTimezone=UTC
+   ```
 
+3. 添加 `spy.properties` 文件
+
+   ```properties
+   #3.2.1以上使用
+   modulelist=com.baomidou.mybatisplus.extension.p6spy.MybatisPlusLogFactory,com.p6spy.engine.outage.P6OutageFactory
+   # 自定义日志打印
+   logMessageFormat=com.baomidou.mybatisplus.extension.p6spy.P6SpyLogger
+   #日志输出到控制台
+   appender=com.baomidou.mybatisplus.extension.p6spy.StdoutLogger
+   # 使用日志系统记录 sql
+   #appender=com.p6spy.engine.spy.appender.Slf4JLogger
+   # 设置 p6spy driver 代理
+   deregisterdrivers=true
+   # 取消JDBC URL前缀
+   useprefix=true
+   # 配置记录 Log 例外,可去掉的结果集有error,info,batch,debug,statement,commit,rollback,result,resultset.
+   excludecategories=info,debug,result,commit,resultset
+   # 日期格式
+   dateformat=yyyy-MM-dd HH:mm:ss
+   # 实际驱动可多个
+   #driverlist=org.h2.Driver
+   # 是否开启慢SQL记录
+   outagedetection=true
+   # 慢SQL记录标准 2 秒
+   outagedetectioninterval=2
+   ```
+
+4. 调用测试方法，查看控制打印语句
+
+   ![image-20210314174619529](README.assets/image-20210314174619529.png)
+
+# 第六章 条件构造器
+
+> 可以通过其来代替复杂的 sql 语句构建
+
+- 测试一
+
+  ```java
+  /**
+  * 测试 Is Not Null & gt(大于)
+  */
+  @Test
+  public void test01(){
+      // 1. 创建查询条件构造器实例： QueryWrapper<T> T 为查询的结果对应的实体类
+      QueryWrapper<User> wrapper = new QueryWrapper<>();
+      // 2. 通过链式调用添加查询条件
+      wrapper
+          .isNotNull("name")
+          .isNotNull("email")
+          .gt("age", 12);
+      // 3. 通过 Mapper 查询时穿入 Wrapper
+      userMapper.selectList(wrapper).forEach(System.out::println);
+  }
+  ```
+
+  ![image-20210314175601386](README.assets/image-20210314175601386.png)
+
+- 测试二
+
+  ```java
+  /**
+  * 测试 eq(等于)
+  */
+  @Test
+  public void test02(){
+      QueryWrapper<User> wrapper = new QueryWrapper<>();
+      wrapper.eq("name", "阿巴巴巴");
+      // selectOne(): 只查询一条记录，如果有多条记录就会报错
+      User user = userMapper.selectOne(wrapper);
+      System.out.println(user);
+  }
+  ```
+
+  ![image-20210314180301941](README.assets/image-20210314180301941.png)
+
+- 测试三
+
+  ```java
+  /**
+  * 测试 between(区间查询)
+  */
+  @Test
+  public void test03(){
+      QueryWrapper<User> wrapper = new QueryWrapper<>();
+      wrapper.between("age", 20, 30);
+      Integer count = userMapper.selectCount(wrapper);
+      System.out.println("用户个数：" + count);
+  }
+  ```
+
+  ![image-20210314180928331](README.assets/image-20210314180928331.png)
+
+- 测试四
+
+  ```java
+  /**
+  * 测试 Like 模糊查询
+  */
+  @Test
+  public void test04(){
+      QueryWrapper<User> wrapper = new QueryWrapper<>();
+      /*
+      * like() 、notLike -> %m%
+      * leftLike() -> %m
+      * rightLike() -> m%
+      * */
+      wrapper
+          .notLike("name", "阿")
+          .likeRight("email", "test");
+      // userMapper.selectMaps() 将查询的结果封装为一个 Map，该 Map 的 key 为对应的字段，value 为对应的值
+      List<Map<String, Object>> mapList = userMapper.selectMaps(wrapper);
+      mapList.forEach((stringObjectMap) -> {
+          for (String key : stringObjectMap.keySet()) {
+              System.out.println(key + ":" + stringObjectMap.get(key));
+          }
+      });
+  }
+  ```
+
+  ![image-20210314182344739](README.assets/image-20210314182344739.png)
+
+- 测试五
+
+  ```java
+  /**
+  * 测试 IN 子查询
+  */
+  @Test
+  public void test05(){
+      QueryWrapper<User> wrapper = new QueryWrapper<>();
+      // 也可以使用普通的 in(R column, Collection<?> value) 方法传入一个数据集合
+      wrapper.inSql("id", "SELECT id FROM user WHERE id > 3");
+      userMapper.selectObjs(wrapper).forEach(System.out::println);
+  }
+  ```
+
+  ![image-20210314183309847](README.assets/image-20210314183309847.png)
+
+- 测试六
+
+  ```java
+  /**
+  * 测试 Order 排序查询
+  */
+  @Test
+  public void test06(){
+      QueryWrapper<User> wrapper = new QueryWrapper<>();
+      wrapper.orderByDesc("id");
+      userMapper.selectList(wrapper).forEach(System.out::println);
+  }
+  ```
+
+  ![image-20210314183707507](README.assets/image-20210314183707507.png)
+
+# 第七章 代码自动生成器
+
+- 导入依赖
+
+  ```xml
+  <!-- 代码自动生成器依赖 -->
+  <dependency>
+      <groupId>com.baomidou</groupId>
+      <artifactId>mybatis-plus-generator</artifactId>
+      <version>3.4.1</version>
+  </dependency>
+  <!-- 导入模板引擎 -->
+  <dependency>
+      <groupId>org.apache.velocity</groupId>
+      <artifactId>velocity-engine-core</artifactId>
+      <version>2.3</version>
+  </dependency>
+  ```
+
+- 
 

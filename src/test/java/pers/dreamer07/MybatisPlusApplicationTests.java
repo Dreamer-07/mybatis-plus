@@ -19,7 +19,7 @@ class MybatisPlusApplicationTests {
     private UserMapper userMapper;
 
     @Test
-    public void test01(){
+    public void     test01(){
         // 通过 Mapper 组件查询数据, 需要传入一个 queryWrapper(条件封装器)，不需要时传入 null 即可
         List<User> userList = userMapper.selectList(null);
         userList.forEach(System.out::println);
